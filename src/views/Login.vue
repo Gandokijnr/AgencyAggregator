@@ -52,18 +52,10 @@
         </RouterLink>
       </p>
     </div>
-
-    <div class="mt-8 p-4 bg-gray-50 rounded-lg">
-      <p class="text-sm text-gray-600 mb-2 font-medium">Demo Accounts:</p>
-      <div class="space-y-1 text-xs text-gray-500">
-        <p><strong>Admin:</strong> admin@demo.com / admin123</p>
-        <p><strong>Agency:</strong> agency@demo.com / agency123</p>
-      </div>
-    </div>
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -82,11 +74,14 @@ const error = ref('')
 const handleSubmit = async () => {
   loading.value = true
   error.value = ''
-  
   try {
     await authStore.signIn(form.value.email, form.value.password)
-    router.push('/dashboard')
-  } catch (err: any) {
+    if (authStore.isAdmin) {
+      router.push('/dashboard/admin')
+    } else {
+      router.push('/dashboard')
+    }
+  } catch (err) {
     error.value = err.message || 'Failed to sign in'
   } finally {
     loading.value = false

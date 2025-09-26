@@ -1,21 +1,20 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
-import type { User } from '@supabase/supabase-js'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
+  const user = ref(null)
   const loading = ref(true)
 
   const isAuthenticated = computed(() => !!user.value)
   const isAdmin = computed(() => {
-    return user.value?.user_metadata?.role === 'admin'
+    return user.value && user.value.user_metadata && user.value.user_metadata.role === 'admin'
   })
 
   const initialize = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      user.value = session?.user ?? null
+      user.value = session && session.user ? session.user : null
     } catch (error) {
       console.error('Auth initialization error:', error)
     } finally {
@@ -23,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  const signUp = async (email: string, password: string, role: string = 'agency') => {
+  const signUp = async (email, password, role = 'agency') => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -33,17 +32,17 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
     })
-    
+
     if (error) throw error
     return data
   }
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     })
-    
+
     if (error) throw error
     user.value = data.user
     return data
@@ -57,7 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Listen for auth changes
   supabase.auth.onAuthStateChange((event, session) => {
-    user.value = session?.user ?? null
+    user.value = session && session.user ? session.user : null
   })
 
   return {

@@ -1,15 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
-import type { Database } from '@/lib/supabase'
-
-type Agency = Database['public']['Tables']['agencies']['Row']
-type Project = Database['public']['Tables']['projects']['Row']
 
 export const useAgenciesStore = defineStore('agencies', () => {
-  const agencies = ref<Agency[]>([])
-  const currentAgency = ref<Agency | null>(null)
-  const projects = ref<Project[]>([])
+  const agencies = ref([])
+  const currentAgency = ref(null)
+  const projects = ref([])
   const loading = ref(false)
 
   const fetchAgencies = async () => {
@@ -20,36 +16,57 @@ export const useAgenciesStore = defineStore('agencies', () => {
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error:', error)
+        throw error
+      }
+      
       agencies.value = data || []
+
     } catch (error) {
-      console.error('Error fetching agencies:', error)
+      console.error('❌ Error fetching agencies:', error)
       throw error
     } finally {
       loading.value = false
     }
   }
 
-  const fetchMyAgency = async (userId: string) => {
+  const fetchMyAgency = async (userId) => {
+    console.log('🔍 fetchMyAgency called with userId:', userId)
     loading.value = true
+    
     try {
+      console.log('🔍 Making Supabase query for user_id:', userId)
       const { data, error } = await supabase
         .from('agencies')
         .select('*')
         .eq('user_id', userId)
         .single()
 
-      if (error && error.code !== 'PGRST116') throw error
+      console.log('🔍 Supabase response:', { data, error })
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('🔍 Supabase error (not PGRST116):', error)
+        throw error
+      }
+      
+      if (error && error.code === 'PGRST116') {
+        console.log('🔍 No agency found for this user (PGRST116 - no rows returned)')
+      }
+      
       currentAgency.value = data
+      console.log('✅ My Agency profile set to:', currentAgency.value)
+      
     } catch (error) {
-      console.error('Error fetching agency:', error)
+      console.error('❌ Error fetching agency:', error)
       throw error
     } finally {
       loading.value = false
+      console.log('🔍 fetchMyAgency completed')
     }
   }
 
-  const createAgency = async (agencyData: Database['public']['Tables']['agencies']['Insert']) => {
+  const createAgency = async (agencyData) => {
     const { data, error } = await supabase
       .from('agencies')
       .insert(agencyData)
@@ -61,7 +78,7 @@ export const useAgenciesStore = defineStore('agencies', () => {
     return data
   }
 
-  const updateAgency = async (id: string, updates: Database['public']['Tables']['agencies']['Update']) => {
+  const updateAgency = async (id, updates) => {
     const { data, error } = await supabase
       .from('agencies')
       .update(updates)
@@ -70,20 +87,20 @@ export const useAgenciesStore = defineStore('agencies', () => {
       .single()
 
     if (error) throw error
-    
-    if (currentAgency.value?.id === id) {
+
+    if (currentAgency.value && currentAgency.value.id === id) {
       currentAgency.value = data
     }
-    
+
     const index = agencies.value.findIndex(a => a.id === id)
     if (index !== -1) {
       agencies.value[index] = data
     }
-    
+
     return data
   }
 
-  const fetchProjects = async (agencyId: string) => {
+  const fetchProjects = async (agencyId) => {
     const { data, error } = await supabase
       .from('projects')
       .select('*')
@@ -95,7 +112,7 @@ export const useAgenciesStore = defineStore('agencies', () => {
     return data
   }
 
-  const createProject = async (projectData: Database['public']['Tables']['projects']['Insert']) => {
+  const createProject = async (projectData) => {
     const { data, error } = await supabase
       .from('projects')
       .insert(projectData)

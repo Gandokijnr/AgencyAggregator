@@ -7,7 +7,7 @@
         <p class="text-gray-600 mt-1">Manage all agencies and their data</p>
       </div>
       <div class="text-sm text-gray-600">
-        Total Agencies: {{ agencies.length }}
+        Total Agencies: {{ agencies?.length || 0 }}
       </div>
     </div>
 
@@ -20,7 +20,7 @@
           </div>
           <div class="ml-4">
             <p class="text-sm font-medium text-gray-500">Total Agencies</p>
-            <p class="text-2xl font-bold text-gray-900">{{ agencies.length }}</p>
+            <p class="text-2xl font-bold text-gray-900">{{ agencies?.length || 0 }}</p>
           </div>
         </div>
       </div>
@@ -67,17 +67,7 @@
       <div class="p-6 border-b border-gray-200">
         <div class="flex items-center justify-between">
           <h3 class="text-lg font-semibold text-gray-900">All Agencies</h3>
-          <div class="flex space-x-4">
-            <select
-              v-model="statusFilter"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
+                  </div>
       </div>
 
       <div class="overflow-x-auto">
@@ -102,7 +92,7 @@
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            <tr v-for="agency in filteredAgencies" :key="agency.id" class="hover:bg-gray-50">
+            <tr v-for="agency in agencies" :key="agency.id" class="hover:bg-gray-50">
               <td class="px-6 py-4">
                 <div>
                   <div class="text-sm font-medium text-gray-900">{{ agency.name }}</div>
@@ -145,7 +135,12 @@
           </tbody>
         </table>
 
-        <div v-if="filteredAgencies.length === 0" class="text-center py-12">
+        <div v-if="loading" class="text-center py-12">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p class="text-gray-500">Loading agencies...</p>
+        </div>
+        
+        <div v-else-if="agencies && agencies.length === 0" class="text-center py-12">
           <BuildingOfficeIcon class="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <p class="text-gray-500">No agencies found</p>
         </div>
@@ -157,17 +152,16 @@
       v-if="showEditModal && selectedAgency"
       :show="showEditModal"
       :agency="selectedAgency"
-      @close="showEditModal = false"
       @save="handleEditAgency"
     />
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+<script setup>
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useAgenciesStore } from '@/stores/agencies'
 import AgencyModal from '@/components/AgencyModal.vue'
-import type { Database } from '@/lib/supabase'
 
 import {
   BuildingOfficeIcon,
@@ -176,53 +170,47 @@ import {
   CalendarIcon
 } from '@heroicons/vue/24/outline'
 
-type Agency = Database['public']['Tables']['agencies']['Row']
-
 const agenciesStore = useAgenciesStore()
+const { agencies, loading } = storeToRefs(agenciesStore)
 
-const statusFilter = ref('')
 const showEditModal = ref(false)
-const selectedAgency = ref<Agency | null>(null)
-
-const { agencies } = agenciesStore
+const selectedAgency = ref(null)
 
 const activeAgencies = computed(() => {
-  return agencies.filter(a => a.is_active).length
+  return (agencies.value || []).filter(a => a.is_active).length
 })
 
 const inactiveAgencies = computed(() => {
-  return agencies.filter(a => !a.is_active).length
+  return (agencies.value || []).filter(a => !a.is_active).length
 })
 
 const thisMonthAgencies = computed(() => {
   const thisMonth = new Date()
   thisMonth.setDate(1)
-  return agencies.filter(a => new Date(a.created_at) >= thisMonth).length
+  return (agencies.value || []).filter(a => new Date(a.created_at) >= thisMonth).length
 })
 
-const filteredAgencies = computed(() => {
-  if (!statusFilter.value) return agencies
-  
-  const isActive = statusFilter.value === 'active'
-  return agencies.filter(agency => agency.is_active === isActive)
-})
 
 onMounted(async () => {
-  await agenciesStore.fetchAgencies()
+  try {
+    await agenciesStore.fetchAgencies()
+  } catch (error) {
+    console.error('❌ Failed to load agencies:', error)
+  }
 })
 
-const editAgency = (agency: Agency) => {
-  selectedAgency.value = agency
-  showEditModal.value = true
-}
-
-const toggleAgencyStatus = async (agency: Agency) => {
+const toggleAgencyStatus = async (agency) => {
   await agenciesStore.updateAgency(agency.id, {
     is_active: !agency.is_active
   })
 }
 
-const handleEditAgency = async (agencyData: any) => {
+const editAgency = (agency) => {
+  selectedAgency.value = agency
+  showEditModal.value = true
+}
+
+const handleEditAgency = async (agencyData) => {
   if (selectedAgency.value) {
     await agenciesStore.updateAgency(selectedAgency.value.id, agencyData)
   }
